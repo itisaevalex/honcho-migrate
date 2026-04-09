@@ -279,17 +279,16 @@ We benchmarked the self-hosted setup against Honcho Cloud (`api.honcho.dev`) to 
 Tests memory ingestion, deriver processing, dialectic recall, semantic search, and cross-session persistence using 10 diverse conversations.
 
 ```
-                              Local           Cloud
-Phase 1  Memory Ingestion     10/10 (100%)    9/10  (90%)
-Phase 2  Deriver Processing   10/10 (100%)    10/10 (100%)
-Phase 3  Memory Recall        10/10 (100%)    6/10  (60%)
-Phase 4  Search Accuracy       8/8  (100%)    7/8   (88%)
-Phase 5  Cross-session         5/5  (100%)    4/5   (80%)
-─────────────────────────────────────────────────────
-Total                         43/43 (100%)    36/43 (84%)
+Phase 1  Memory Ingestion     10/10 (100%)
+Phase 2  Deriver Processing   10/10 (100%)
+Phase 3  Memory Recall        10/10 (100%)
+Phase 4  Search Accuracy       8/8  (100%)
+Phase 5  Cross-session         5/5  (100%)
+──────────────────────────────────────────
+Total                         43/43 (100%)
 ```
 
-Local wins on accuracy because we control deriver timing. Cloud's lower recall scores are due to rate limiting dropping a conversation and the shared deriver not finishing in time.
+We also ran this against Honcho Cloud (84%) but the comparison was unfair — cloud scores were lower due to API rate limiting dropping a conversation and the shared deriver not finishing before we queried. The LoCoMo benchmark below gives a fair head-to-head with proper deriver wait times.
 
 ### LoCoMo Academic Benchmark
 
