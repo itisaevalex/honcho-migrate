@@ -1,17 +1,23 @@
 # honcho-migrate
 
 ```
- _                      _                          _                 _
-| |__   ___  _ __   ___| |__   ___    _ __ ___   (_) __ _ _ __ __ _| |_ ___
-| '_ \ / _ \| '_ \ / __| '_ \ / _ \  | '_ ` _ \  | |/ _` | '__/ _` | __/ _ \
-| | | | (_) | | | | (__| | | | (_) | | | | | | | | | (_| | | | (_| | ||  __/
-|_| |_|\___/|_| |_|\___|_| |_|\___/  |_| |_| |_| |_|\__, |_|  \__,_|\__\___|
-                                                      |___/
+ ╦ ╦╔═╗╔╗╔╔═╗╦ ╦╔═╗       ╔╦╗╦╔═╗╦═╗╔═╗╔╦╗╔═╗
+ ╠═╣║ ║║║║║  ╠═╣║ ║  ───   ║║║║║ ╦╠╦╝╠═╣ ║ ║╣
+ ╩ ╩╚═╝╝╚╝╚═╝╩ ╩╚═╝       ╩ ╩╩╚═╝╩╚═╩ ╩ ╩ ╚═╝
+
+   ┌─────────┐  migrate.py  ┌─────────┐
+   │  Cloud  │◄────────────►│  Local  │
+   │ Honcho  │  any direction│ Honcho  │
+   └─────────┘              └─────────┘
+        ▲                        ▲
+        └────────────┬───────────┘
+                     │
+              zero lock-in
 ```
 
 **Migrate, backup, and self-host [Honcho](https://honcho.dev) memory across any instance.**
 
-Move your AI agent memories between Honcho Cloud, self-hosted instances, and other machines. Zero lock-in.
+Move your AI agent memories between Honcho Cloud, self-hosted instances, and other machines. Your memories, your infrastructure, zero lock-in.
 
 ---
 
@@ -29,7 +35,7 @@ This tool lets you:
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/honcho-migrate.git
+git clone https://github.com/itisaevalex/honcho-migrate.git
 cd honcho-migrate
 pip install requests
 ```
@@ -265,6 +271,64 @@ git stash pop  # resolve conflicts if any
 docker compose up -d --build
 ```
 
+## Benchmarks
+
+We benchmarked the self-hosted setup against Honcho Cloud (`api.honcho.dev`) to verify memory quality is equivalent.
+
+### Smoke Test (Custom — 5 Phases)
+
+Tests memory ingestion, deriver processing, dialectic recall, semantic search, and cross-session persistence using 10 diverse conversations.
+
+```
+                              Local           Cloud
+Phase 1  Memory Ingestion     10/10 (100%)    9/10  (90%)
+Phase 2  Deriver Processing   10/10 (100%)    10/10 (100%)
+Phase 3  Memory Recall        10/10 (100%)    6/10  (60%)
+Phase 4  Search Accuracy       8/8  (100%)    7/8   (88%)
+Phase 5  Cross-session         5/5  (100%)    4/5   (80%)
+─────────────────────────────────────────────────────
+Total                         43/43 (100%)    36/43 (84%)
+```
+
+Local wins on accuracy because we control deriver timing. Cloud's lower recall scores are due to rate limiting dropping a conversation and the shared deriver not finishing in time.
+
+### LoCoMo Academic Benchmark
+
+[LoCoMo](https://github.com/snap-research/locomo) evaluates long-term conversational memory across multi-session dialogues (~300 turns, 19 sessions per conversation). Both instances had **full deriver processing + dream consolidation** before evaluation — a fair comparison.
+
+```
+                              Local           Cloud
+Single-hop (direct recall)    3.0/5  (60%)    4.0/5  (80%)
+Multi-hop  (cross-fact)       0.0/8   (0%)    0.0/8   (0%)
+Temporal   (time-based)       0.0/1   (0%)    0.0/1   (0%)
+Open-domain (commonsense)     1.5/2  (75%)    1.0/2  (50%)
+─────────────────────────────────────────────────────
+Total                         4.5/16 (28%)    5.0/16 (31%)
+```
+
+**Essentially a draw.** Both share the same weakness on temporal/multi-hop questions — Honcho extracts semantic observations ("user is vegetarian"), not timestamped event logs ("user said X on May 7"). This is by design; Honcho is built for understanding people, not timeline reconstruction.
+
+### Model Stack Comparison
+
+| Role | Self-hosted (Ollama) | Cloud (Honcho managed) |
+|------|---------------------|----------------------|
+| Deriver | qwen3.5:397b | Gemini 2.5 Flash Lite |
+| Dialectic (low) | qwen3.5:397b | Gemini 2.5 Flash Lite |
+| Dialectic (high) | minimax-m2.7 | Claude Haiku 4.5 |
+| Dreamer | minimax-m2.7 | Claude Sonnet 4 |
+| Embeddings | bge-m3 (1024d, local) | text-embedding-3-small (1536d) |
+
+Open-weight models via Ollama Cloud match proprietary models on memory quality.
+
+### Migration Test Suite
+
+17 automated tests covering dry run, basic migration, edge cases (unicode, HTML injection, 3000-char messages), empty workspaces, workspace filtering, and idempotency. All passing.
+
+```bash
+python3 tests/test_migrate.py
+# Results: 17/17 passed
+```
+
 ## Troubleshooting
 
 ### Deriver not processing messages
@@ -316,4 +380,6 @@ redis:
 
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE).
+
+This is a community tool for [Honcho](https://github.com/plastic-labs/honcho) by Plastic Labs. Honcho itself is AGPL-3.0 licensed. The patches in `patches/` are modifications to Honcho source and are subject to Honcho's license when applied.
