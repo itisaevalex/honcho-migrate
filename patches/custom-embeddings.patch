@@ -1,0 +1,134 @@
+diff --git a/src/config.py b/src/config.py
+index f01c451..0a14b0d 100644
+--- a/src/config.py
++++ b/src/config.py
+@@ -214,6 +214,8 @@ class LLMSettings(HonchoSettings):
+     VLLM_BASE_URL: str | None = None
+ 
+     EMBEDDING_PROVIDER: Literal["openai", "gemini", "openrouter"] = "openai"
++    EMBEDDING_MODEL: str | None = None  # Override default embedding model name
++    EMBEDDING_BASE_URL: str | None = None  # Separate base URL for embedding endpoint (e.g. local Ollama)
+ 
+     # General LLM settings
+     DEFAULT_MAX_TOKENS: Annotated[int, Field(default=1000, gt=0, le=100_000)] = 2500
+diff --git a/src/db.py b/src/db.py
+index 4b65617..f376b9b 100644
+--- a/src/db.py
++++ b/src/db.py
+@@ -63,7 +63,9 @@ Base = declarative_base(metadata=meta)
+ 
+ 
+ async def init_db():
+-    """Initialize the database using Alembic migrations"""
++    """Initialize the database using Alembic migrations, or create_all for fresh installs."""
++    import os
++
+     from alembic import command
+     from alembic.config import Config
+ 
+@@ -74,6 +76,12 @@ async def init_db():
+         await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+         await connection.commit()
+ 
+-    # Run Alembic migrations
+-    alembic_cfg = Config("alembic.ini")
+-    command.upgrade(alembic_cfg, "head")
++    if os.environ.get("HONCHO_FRESH_INSTALL") == "true":
++        import src.models  # noqa: F401
++        async with engine.begin() as conn:
++            await conn.run_sync(Base.metadata.create_all)
++        alembic_cfg = Config("alembic.ini")
++        command.stamp(alembic_cfg, "head")
++    else:
++        alembic_cfg = Config("alembic.ini")
++        command.upgrade(alembic_cfg, "head")
+diff --git a/src/embedding_client.py b/src/embedding_client.py
+index 9798dc0..b36796f 100644
+--- a/src/embedding_client.py
++++ b/src/embedding_client.py
+@@ -40,6 +40,7 @@ class _EmbeddingClient:
+             self.max_embedding_tokens: int = min(settings.MAX_EMBEDDING_TOKENS, 2048)
+             # Gemini batch size is not documented, using conservative estimate
+             self.max_batch_size: int = 100
++            self._target_dims: int | None = None  # Gemini handles dims via config
+         elif self.provider == "openrouter":
+             if api_key is None:
+                 api_key = settings.LLM.OPENAI_COMPATIBLE_API_KEY
+@@ -48,11 +49,14 @@ class _EmbeddingClient:
+                     "OpenRouter API key (LLM_OPENAI_COMPATIBLE_API_KEY) is required"
+                 )
+             base_url = (
+-                settings.LLM.OPENAI_COMPATIBLE_BASE_URL
++                settings.LLM.EMBEDDING_BASE_URL
++                or settings.LLM.OPENAI_COMPATIBLE_BASE_URL
+                 or "https://openrouter.ai/api/v1"
+             )
+             self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+-            self.model = "openai/text-embedding-3-small"
++            self.model = settings.LLM.EMBEDDING_MODEL or "openai/text-embedding-3-small"
++            # Request exact dimensions to match DB schema (1536 default)
++            self._target_dims = 1536
+             self.max_embedding_tokens = settings.MAX_EMBEDDING_TOKENS
+             self.max_batch_size = 2048  # Same as OpenAI
+         else:  # openai
+@@ -62,6 +66,7 @@ class _EmbeddingClient:
+                 raise ValueError("OpenAI API key is required")
+             self.client = AsyncOpenAI(api_key=api_key)
+             self.model = "text-embedding-3-small"
++            self._target_dims: int | None = None  # OpenAI text-embedding-3-small outputs 1536 natively
+             self.max_embedding_tokens = settings.MAX_EMBEDDING_TOKENS
+             self.max_batch_size = 2048  # OpenAI batch limit
+ 
+@@ -87,10 +92,11 @@ class _EmbeddingClient:
+             if not response.embeddings or not response.embeddings[0].values:
+                 raise ValueError("No embedding returned from Gemini API")
+             return response.embeddings[0].values
+-        else:  # openai
+-            response = await self.client.embeddings.create(
+-                model=self.model, input=query
+-            )
++        else:  # openai / openrouter
++            kwargs = {"model": self.model, "input": query}
++            if self._target_dims:
++                kwargs["dimensions"] = self._target_dims
++            response = await self.client.embeddings.create(**kwargs)
+             return response.data[0].embedding
+ 
+     async def simple_batch_embed(self, texts: list[str]) -> list[list[float]]:
+diff --git a/src/models.py b/src/models.py
+index c2aa84d..5a2413d 100644
+--- a/src/models.py
++++ b/src/models.py
+@@ -1,4 +1,5 @@
+ import datetime
++import os
+ from logging import getLogger
+ from typing import Any, final
+ 
+@@ -33,6 +34,8 @@ load_dotenv(override=True)
+ 
+ logger = getLogger(__name__)
+ 
++_VECTOR_DIMS = int(os.environ.get("VECTOR_STORE_DIMENSIONS", "1536"))
++
+ 
+ # Association table for many-to-many relationship between sessions and peers
+ session_peers_table = Table(
+@@ -278,7 +281,7 @@ class MessageEmbedding(Base):
+         BigInteger, Identity(), primary_key=True, autoincrement=True
+     )
+     content: Mapped[str] = mapped_column(TEXT)
+-    embedding: MappedColumn[Any] = mapped_column(Vector(1536), nullable=True)
++    embedding: MappedColumn[Any] = mapped_column(Vector(_VECTOR_DIMS), nullable=True)
+     message_id: Mapped[str] = mapped_column(
+         ForeignKey("messages.public_id", ondelete="CASCADE"), nullable=False, index=True
+     )
+@@ -386,7 +389,7 @@ class Document(Base):
+     times_derived: Mapped[int] = mapped_column(
+         Integer, nullable=False, server_default=text("1")
+     )
+-    embedding: MappedColumn[Any] = mapped_column(Vector(1536), nullable=True)
++    embedding: MappedColumn[Any] = mapped_column(Vector(_VECTOR_DIMS), nullable=True)
+     source_ids: Mapped[list[str] | None] = mapped_column(
+         JSONB, nullable=True, server_default=text("NULL")
+     )
