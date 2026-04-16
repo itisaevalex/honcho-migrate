@@ -1,6 +1,6 @@
 # Hermes Agent Integration
 
-How to connect [Hermes](https://github.com/rubra-ai/hermes) agents to Honcho for persistent memory across conversations, platforms, and users.
+How to connect [Hermes](https://github.com/NousResearch/hermes-agent) agents to Honcho for persistent memory across conversations, platforms, and users.
 
 ## What is Hermes
 
@@ -54,7 +54,7 @@ Create `~/.hermes/profiles/mybot/honcho.json`:
 | `aiPeer` | The bot's peer ID. Honcho tracks what the bot learns about users under this identity. |
 | `enabled` | Toggle Honcho integration on/off without removing config. |
 | `recallMode` | How the bot retrieves memory. See [Memory Modes](#memory-modes) below. |
-| `observationMode` | `"directional"` means the bot observes the user (not itself). `"bidirectional"` observes both. |
+| `observationMode` | `"directional"` means the bot observes the user (not itself). `"unified"` observes both. |
 
 ### Remote Honcho (Tailscale)
 
@@ -311,6 +311,7 @@ cron:
     workspace: "mybot"
     session_prefix: "cron"
     base_url: "http://localhost:8000"
+    peer_name: "alex"              # resolved at runtime for gateway sessions
     ai_peer: "mybot"
 ```
 

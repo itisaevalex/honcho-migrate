@@ -82,7 +82,7 @@ claude() {
   local config_file="$HOME/.honcho/config.json"
   local map_file="$HOME/.honcho/workspace-map.conf"
 
-  # Read workspace-map.conf and find first matching pattern
+  # Read workspace-map.conf and find first matching pattern (substring match)
   if [[ -f "$map_file" ]]; then
     while IFS='=' read -r pattern ws; do
       # Skip comments and blank lines
@@ -91,7 +91,7 @@ claude() {
       # Trim whitespace
       pattern="$(echo "$pattern" | xargs)"
       ws="$(echo "$ws" | xargs)"
-      if [[ "$dir" == $pattern ]]; then
+      if [[ "$dir" == *"$pattern"* ]]; then
         workspace="$ws"
         break
       fi
@@ -116,16 +116,16 @@ Create `~/.honcho/workspace-map.conf`:
 
 ```conf
 # pattern = workspace
-# Patterns use bash glob syntax (matched against $PWD)
+# Patterns are plain substrings matched against $PWD (not globs).
+# First match wins. Default workspace (no match) is claude_code.
 
-/home/alex/Documents/LocalHermes*    = localhermes
-/home/alex/Documents/honcho*         = honcho-dev
-/home/alex/projects/sales-agent*     = sales-agent
-/home/alex/projects/website*         = website
-*                                    = default
+LocalHermes    = localhermes
+honcho         = honcho-dev
+sales-agent    = sales-agent
+website        = website
 ```
 
-First match wins. The `*` at the end is the fallback.
+First match wins. If no pattern matches, the workspace defaults to `claude_code`.
 
 ### Option B: Binary Shim
 
@@ -133,7 +133,7 @@ The bashrc function only works when you launch `claude` from a terminal. If Clau
 
 A binary shim fixes this by sitting in your PATH before the real `claude` binary.
 
-Place in `~/bin/claude` (or anywhere earlier in PATH than the real binary):
+Place in `~/.local/bin/claude` (or anywhere earlier in PATH than the real binary):
 
 ```bash
 #!/usr/bin/env bash
@@ -152,7 +152,7 @@ if [[ -f "$MAP" ]]; then
     [[ -z "$pattern" ]] && continue
     pattern="$(echo "$pattern" | xargs)"
     ws="$(echo "$ws" | xargs)"
-    if [[ "$dir" == $pattern ]]; then
+    if [[ "$dir" == *"$pattern"* ]]; then
       workspace="$ws"
       break
     fi
@@ -168,13 +168,13 @@ exec "$REAL_CLAUDE" "$@"
 ```
 
 ```bash
-chmod +x ~/bin/claude
+chmod +x ~/.local/bin/claude
 ```
 
-Make sure `~/bin` comes before the real claude location in your PATH:
+Make sure `~/.local/bin` comes before the real claude location in your PATH:
 
 ```bash
-export PATH="$HOME/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### Which to use

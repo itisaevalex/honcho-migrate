@@ -63,7 +63,7 @@ All list endpoints return paginated responses with the same shape:
 ```
 
 - `page` — 1-based current page number
-- `size` — items per page (default 50, max 100)
+- `size` — items per page (default 50, max 100). This is the `size` query parameter echoed back in the response.
 - `pages` — total number of pages
 - `total` — total number of items across all pages
 

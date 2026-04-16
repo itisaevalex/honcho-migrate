@@ -176,6 +176,7 @@ Replace `100.100.223.89` with your server's actual Tailscale IP.
 Copy the workspace map and shim:
 
 ```bash
+# Run from the honcho-migrate repo root, or use the full path:
 cp client/workspace-map.conf.example ~/.honcho/workspace-map.conf
 # Edit the map to match your projects
 ```
