@@ -1,0 +1,12 @@
+{
+  "apiKey": "local",
+  "baseUrl": "http://YOUR_HONCHO_HOST:8000",
+  "workspace": "YOUR_WORKSPACE",
+  "peerName": "YOUR_PEER_NAME",
+  "aiPeer": "YOUR_BOT_NAME",
+  "enabled": true,
+  "recallMode": "hybrid",
+  "observationMode": "directional",
+  "dialecticReasoningLevel": "low",
+  "sessionStrategy": "per-directory"
+}

@@ -1,0 +1,9 @@
+# Maps directory patterns to Honcho workspaces
+# Format: pattern=workspace
+# First match wins. Patterns are matched against $PWD.
+# Default (no match): claude_code
+
+# Examples:
+# my-project=my-project-workspace
+# frontend-app=my-project-workspace
+# internal-tools=internal-workspace

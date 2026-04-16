@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Honcho auto-workspace shim — patches ~/.honcho/config.json before launching Claude Code.
+# Install to ~/.local/bin/claude (must be earlier in PATH than the real binary).
+
+# Find the real binary (largest ELF file in versions dir, ignores scripts)
+_VERSIONS="$HOME/.local/share/claude/versions"
+_REAL_CLAUDE="$(find "$_VERSIONS" -maxdepth 1 -type f -size +1M 2>/dev/null | sort -V | tail -1)"
+
+if [ -z "$_REAL_CLAUDE" ] || ! file "$_REAL_CLAUDE" 2>/dev/null | grep -q ELF; then
+  echo "Error: Claude binary not found in $_VERSIONS" >&2
+  exit 1
+fi
+
+# Resolve workspace from map
+_MAP="$HOME/.honcho/workspace-map.conf"
+_CONFIG="$HOME/.honcho/config.json"
+_WS="claude_code"
+
+if [ -f "$_MAP" ]; then
+  while IFS='=' read -r pattern workspace; do
+    [[ "$pattern" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$pattern" ]] && continue
+    if [[ "$PWD" == *"$pattern"* ]]; then
+      _WS="$workspace"
+      break
+    fi
+  done < "$_MAP"
+fi
+
+# Patch config.json (pass values via env to avoid shell injection)
+if [ -f "$_CONFIG" ] && command -v python3 &>/dev/null; then
+  HONCHO_WS="$_WS" HONCHO_CFG="$_CONFIG" python3 -c "
+import json, os
+config_path = os.environ['HONCHO_CFG']
+ws = os.environ['HONCHO_WS']
+with open(config_path) as f:
+    cfg = json.load(f)
+cfg.setdefault('hosts', {}).setdefault('claude_code', {})['workspace'] = ws
+with open(config_path, 'w') as f:
+    json.dump(cfg, f, indent=2)
+" 2>/dev/null
+fi
+
+exec "$_REAL_CLAUDE" "$@"

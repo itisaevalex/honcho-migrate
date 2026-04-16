@@ -1,0 +1,15 @@
+{
+  "apiKey": "not-required-for-self-hosted",
+  "peerName": "YOUR_NAME",
+  "endpoint": {
+    "baseUrl": "http://YOUR_HONCHO_HOST:8000/v3"
+  },
+  "sessionStrategy": "per-directory",
+  "saveMessages": true,
+  "enabled": true,
+  "hosts": {
+    "claude_code": {
+      "workspace": "default"
+    }
+  }
+}
